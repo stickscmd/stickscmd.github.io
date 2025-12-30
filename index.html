@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedAssist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23475569'/%3E%3Crect x='42' y='25' width='16' height='50' fill='white' rx='5'/%3E%3Crect x='25' y='42' width='50' height='16' fill='white' rx='5'/%3E%3C/svg%3E" type="image/svg+xml">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+
+        :root {
+            --primary: #475569;
+            --primary-light: #F1F5F9;
+            --accent: #94A3B8;
+            --bg-main: #E2E8F0;
+            --text-main: #1E293B;
+            --text-muted: #64748B;
+            --panel-bg: #F8FAFC;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            -webkit-tap-highlight-color: transparent;
+            line-height: 1.6;
+            background-image: radial-gradient(#94a3b8 0.5px, transparent 0.5px);
+            background-size: 24px 24px;
+        }
+
+        .calendar-strip {
+            display: flex;
+            overflow-x: auto;
+            scrollbar-width: none;
+            gap: 12px;
+            padding: 12px 0;
+        }
+        .calendar-strip::-webkit-scrollbar { display: none; }
+
+        .day-card {
+            flex: 0 0 65px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 18px 0;
+            border-radius: 24px;
+            cursor: pointer;
+            background: #E2E8F0;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            color: var(--text-muted);
+        }
+
+        .day-card.active {
+            background-color: #CBD5E1;
+            color: var(--text-main);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+            border-color: #94A3B8;
+        }
+
+        #side-menu {
+            transform: translateX(-100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #side-menu.open { transform: translateX(0); }
+
+        #ai-sheet {
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #ai-sheet.open { transform: translateY(0); }
+
+        .chat-msg {
+            max-width: 85%;
+            padding: 14px 20px;
+            border-radius: 20px;
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+        .msg-user {
+            background: var(--primary);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .msg-bot {
+            background: white;
+            color: var(--text-main);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #E2E8F0;
+        }
+
+        .hidden-scale { transform: scale(0) translateY(20px); opacity: 0; pointer-events: none; }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+        }
+        .calendar-grid-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .calendar-grid-day:hover { background: #F1F5F9; }
+        .calendar-grid-day.selected { background: #475569; color: white; }
+        .calendar-grid-day.today-marker { box-shadow: inset 0 0 0 2px #94A3B8; }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: #cbd5e1;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+    </style>
+</head>
+<body class="pb-28">
+
+    <!-- LOGIN SCREEN -->
+    <div id="loginSection" class="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-200">
+        <button onclick="toggleSettingsModal(true)" class="absolute top-6 right-6 w-10 h-10 rounded-xl bg-slate-300/50 flex items-center justify-center text-slate-600 hover:bg-slate-300 transition-colors">
+            <i class="fas fa-cog"></i>
+        </button>
+
+        <div class="bg-white rounded-[3rem] shadow-xl w-full max-w-md p-10 text-center">
+            <div class="bg-slate-100 w-20 h-20 rounded-[2rem] flex items-center justify-center text-slate-500 mx-auto mb-8">
+                <i class="fas fa-hand-holding-medical text-3xl"></i>
+            </div>
+            <h2 id="authTitle" class="text-3xl font-extrabold text-slate-900 tracking-tight">MedAssist</h2>
+            <p id="authSubtitle" class="text-slate-500 mt-2 mb-10 font-medium">Your minimalist health companion.</p>
+            
+            <form onsubmit="handleAuth(event)" class="space-y-4">
+                <div id="authError" class="hidden p-4 bg-red-50 text-red-700 text-sm font-bold rounded-2xl border border-red-100 text-left">
+                    <span id="errorMessage">Invalid credentials</span>
+                </div>
+                <input id="email" type="email" placeholder="Email" class="w-full px-6 py-4 rounded-2xl outline-none bg-slate-50 border border-slate-200 font-semibold text-slate-800 focus:border-slate-400 transition-colors" required>
+                
+                <!-- Password Field with Toggle -->
+                <div class="relative">
+                    <input id="password" type="password" placeholder="Password" class="w-full px-6 py-4 rounded-2xl outline-none bg-slate-50 border border-slate-200 font-semibold text-slate-800 focus:border-slate-400 transition-colors pr-14" required>
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors rounded-xl hover:bg-slate-100/50">
+                        <i class="fas fa-eye" id="password-eye-icon"></i>
+                    </button>
+                </div>
+
+                <button type="submit" id="authSubmitBtn" class="w-full py-5 bg-slate-800 text-white text-lg font-bold rounded-2xl shadow-lg mt-6 active:scale-95 transition-all">Sign In</button>
+            </form>
+            <button onclick="toggleAuthMode()" id="toggleBtn" class="mt-8 text-slate-500 font-bold text-sm underline underline-offset-4">Create an account</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="appSection" class="hidden">
+        <header class="bg-white/80 backdrop-blur-md border-b border-slate-300 px-4 sm:px-8 py-5 sticky top-0 z-40">
+            <div class="flex items-center justify-between max-w-5xl mx-auto w-full">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleSideMenu(true)" class="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <div class="w-9 h-9 bg-slate-800 text-white rounded-xl flex items-center justify-center">
+                            <i class="fas fa-briefcase-medical text-sm"></i>
+                        </div>
+                        <h1 class="text-lg font-extrabold text-slate-800 tracking-tight">MedAssist</h1>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleAiSheet(true)" class="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors">
+                        <i class="fas fa-robot"></i>
+                    </button>
+                    <div class="flex items-center gap-2 bg-slate-100 pl-1.5 pr-4 py-1.5 rounded-2xl border border-slate-200">
+                        <div class="w-8 h-8 bg-slate-400 text-white rounded-lg flex items-center justify-center text-[10px] font-bold">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <span id="header-username" class="text-xs font-bold text-slate-600">User</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <div id="side-menu-overlay" onclick="toggleSideMenu(false)" class="fixed inset-0 bg-slate-900/40 z-50 hidden backdrop-blur-sm"></div>
+        <div id="side-menu" class="fixed top-0 left-0 h-full w-72 bg-slate-50 z-[60] shadow-2xl flex flex-col p-8 rounded-r-[2.5rem] border-r border-slate-200">
+            <div class="mb-10 pt-6">
+                <div class="w-16 h-16 bg-slate-800 rounded-3xl mb-4 flex items-center justify-center text-white text-2xl shadow-lg">
+                    <i class="fas fa-briefcase-medical"></i>
+                </div>
+                <h2 id="user-display-name" class="text-2xl font-extrabold text-slate-800">User</h2>
+                <p id="user-display-email" class="text-slate-500 text-sm font-medium">user@example.com</p>
+            </div>
+            <nav class="flex-1 space-y-2">
+                <button onclick="switchTab('today')" class="w-full text-left p-4 rounded-2xl font-bold bg-white text-slate-800 border border-slate-200 flex items-center gap-4 transition-all">
+                    <i class="fas fa-calendar-day"></i> Today
+                </button>
+                <button onclick="switchTab('list')" class="w-full text-left p-4 rounded-2xl font-bold text-slate-500 hover:bg-white flex items-center gap-4 transition-all">
+                    <i class="fas fa-list"></i> Library
+                </button>
+                <button onclick="toggleSettingsModal(true); toggleSideMenu(false);" class="w-full text-left p-4 rounded-2xl font-bold text-slate-500 hover:bg-white flex items-center gap-4 transition-all">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </nav>
+            <button onclick="logout()" class="w-full p-4 text-slate-400 font-bold border-t border-slate-200 mt-4 flex items-center gap-4 hover:text-red-500 transition-colors">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+
+        <main class="max-w-xl mx-auto p-6">
+            <div id="view-today" class="space-y-6">
+                <div class="bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-300 shadow-sm">
+                    <div class="flex justify-between items-center mb-5 px-1">
+                        <div class="flex flex-col">
+                            <span id="current-month-display" class="font-extrabold text-slate-500 uppercase text-[10px] tracking-[0.2em]">DEC 2025</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="openFullCalendar()" class="text-[10px] font-extrabold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fas fa-th-large text-[8px]"></i> Full View
+                            </button>
+                            <button onclick="selectedDate = new Date(); selectedDate.setHours(0,0,0,0); renderAll();" class="text-[10px] font-extrabold text-slate-600 bg-slate-200 px-3 py-1.5 rounded-full uppercase tracking-wider">TODAY</button>
+                        </div>
+                    </div>
+                    <div id="calendar-strip" class="calendar-strip"></div>
+                </div>
+
+                <div id="status-card" class="bg-white rounded-[2.5rem] p-8 border border-slate-300 shadow-sm">
+                    <h2 id="greeting-date" class="text-xl font-extrabold text-slate-800">Daily Goal</h2>
+                    <p id="summary-text" class="text-slate-500 text-base mt-2 font-medium">0 of 0 completed.</p>
+                </div>
+
+                <div id="schedule-container" class="space-y-4"></div>
+            </div>
+
+            <div id="view-list" class="hidden space-y-6">
+                <h3 class="text-xl font-extrabold text-slate-800 px-2">Medication Library</h3>
+                <div id="med-list-container" class="space-y-4"></div>
+            </div>
+        </main>
+
+        <!-- Floating Action Menu -->
+        <div class="fixed bottom-8 right-8 flex flex-col items-end gap-3 z-50">
+            <div id="fab-menu" class="hidden-scale flex flex-col gap-3">
+                <button onclick="triggerScan()" class="bg-white px-6 py-4 rounded-2xl shadow-lg border border-slate-200 font-extrabold text-slate-700 text-sm flex items-center gap-3 active:scale-95 transition-all">
+                    <i class="fas fa-camera text-slate-400"></i> Scan Prescription
+                </button>
+                <button onclick="toggleModal(true)" class="bg-white px-6 py-4 rounded-2xl shadow-lg border border-slate-200 font-extrabold text-slate-700 text-sm flex items-center gap-3 active:scale-95 transition-all">
+                    <i class="fas fa-plus-circle text-slate-400"></i> Manual Entry
+                </button>
+            </div>
+            <button id="fab-main" onclick="toggleFabMenu()" class="w-16 h-16 bg-slate-800 text-white rounded-[1.5rem] shadow-xl flex items-center justify-center text-xl transition-transform">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+
+        <!-- AI Assistant Sheet -->
+        <div id="ai-sheet-overlay" onclick="toggleAiSheet(false)" class="fixed inset-0 bg-slate-900/40 z-[90] hidden backdrop-blur-sm"></div>
+        <div id="ai-sheet" class="fixed bottom-0 left-0 right-0 bg-slate-50 z-[100] rounded-t-[3rem] h-[80vh] shadow-2xl flex flex-col overflow-hidden border-t border-slate-200">
+            <div class="p-6 bg-white border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-slate-800 text-white rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-robot text-sm"></i></div>
+                    <span class="font-extrabold text-lg text-slate-800 tracking-tight">AI Assistant</span>
+                </div>
+                <button onclick="toggleAiSheet(false)" class="text-slate-400 p-2 hover:text-slate-600 transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+
+            <div id="chat-container" class="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+                <div class="msg-bot chat-msg border border-slate-200 shadow-sm">
+                    Hi! I'm your health assistant. How can I help you today?
+                </div>
+            </div>
+
+            <div class="p-6 bg-white border-t border-slate-200">
+                <form onsubmit="handleChatSubmit(event)" class="relative">
+                    <input type="text" id="chat-input" placeholder="Type a message..." class="w-full pl-6 pr-16 py-4 rounded-2xl bg-slate-100 border border-slate-200 outline-none focus:border-slate-400 font-semibold text-slate-800 transition-all">
+                    <button type="submit" class="absolute right-2 top-2 w-11 h-11 bg-slate-800 text-white rounded-xl flex items-center justify-center shadow-md active:scale-95 transition-all">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Medication Modal -->
+    <div id="modal-overlay" class="fixed inset-0 hidden z-[110] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90vh]">
+            <h2 class="text-2xl font-extrabold text-slate-800 mb-6">Add Medication</h2>
+            <form id="med-form" class="space-y-4">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Name</label>
+                    <input type="text" id="med-name" placeholder="Medication Name" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800" required>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Dosage</label>
+                        <input type="text" id="med-dose" placeholder="e.g. 10mg" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800" required>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Time</label>
+                        <input type="time" id="med-time" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800" required>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Frequency</label>
+                    <select id="med-frequency" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800">
+                        <option value="daily">Daily</option>
+                        <option value="every-other">Every Other Day</option>
+                        <option value="weekly">Weekly</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Start Date</label>
+                        <input type="date" id="med-start-date" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800" required>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">End Date (Optional)</label>
+                        <input type="date" id="med-end-date" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800">
+                    </div>
+                </div>
+                <div class="flex gap-3 pt-6">
+                    <button type="button" onclick="toggleModal(false)" class="flex-1 py-4 bg-slate-100 rounded-2xl font-extrabold text-slate-500">Cancel</button>
+                    <button type="submit" class="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-extrabold shadow-lg">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 hidden z-[250] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border border-slate-200">
+            <h2 class="text-2xl font-extrabold text-slate-800 mb-2">Settings</h2>
+            <p class="text-slate-500 text-sm mb-6">Configure your connection for local use.</p>
+            <form onsubmit="saveSettings(event)" class="space-y-4">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Gemini API Key</label>
+                    <input type="password" id="settings-api-key" placeholder="Paste your API key here" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800 focus:border-slate-400" required>
+                    <p class="text-[10px] text-slate-400 px-2 mt-1">Get a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" class="underline text-blue-500">Google AI Studio</a></p>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="toggleSettingsModal(false)" class="flex-1 py-4 bg-slate-100 rounded-2xl font-extrabold text-slate-500">Cancel</button>
+                    <button type="submit" class="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-extrabold shadow-lg">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Full Calendar Modal -->
+    <div id="calendar-modal" class="fixed inset-0 hidden z-[120] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-slate-200">
+            <div class="flex items-center justify-between mb-8">
+                <h2 id="modal-month-title" class="text-2xl font-extrabold text-slate-800 tracking-tight">Month</h2>
+                <button onclick="closeFullCalendar()" class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="grid grid-cols-7 gap-1 mb-4 text-center">
+                <div class="text-[10px] font-bold text-slate-300 uppercase">Su</div>
+                <div class="text-[10px] font-bold text-slate-300 uppercase">Mo</div>
+                <div class="text-[10px] font-bold text-slate-300 uppercase">Tu</div>
+                <div class="text-[10px] font-bold text-slate-300 uppercase">We</div>
+                <div class="text-[10px] font-bold text-slate-300 uppercase">Th</div>
+                <div class="text-[10px] font-bold text-slate-300 uppercase">Fr</div>
+                <div class="text-[10px] font-bold text-slate-300 uppercase">Sa</div>
+            </div>
+            <div id="full-calendar-grid" class="calendar-grid"></div>
+            <button onclick="closeFullCalendar()" class="w-full mt-8 py-4 bg-slate-800 text-white rounded-2xl font-extrabold shadow-lg">Close</button>
+        </div>
+    </div>
+
+    <!-- Scanning Overlay -->
+    <div id="scan-loader" class="fixed inset-0 z-[300] bg-white hidden flex flex-col items-center justify-center p-10 text-center">
+        <div id="loader-spinner" class="w-20 h-20 border-8 border-slate-200 border-t-slate-800 rounded-full animate-spin mb-8"></div>
+        <div id="loader-success" class="hidden w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-8 text-4xl">
+            <i class="fas fa-check"></i>
+        </div>
+        <h3 id="loader-title" class="text-2xl font-extrabold text-slate-800">Processing...</h3>
+        <p id="loader-text" class="text-slate-500 text-lg mt-3 font-medium">Extracting medication details.</p>
+        <button id="loader-close" onclick="closeLoader()" class="hidden mt-8 px-8 py-4 bg-slate-800 text-white rounded-2xl font-extrabold shadow-xl">Done</button>
+    </div>
+
+    <input type="file" id="scan-input" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
+
+    <script>
+        const apiKey = ""; 
+        let medications = [];
+        let completedDoses = {};
+        let selectedDate = new Date();
+        selectedDate.setHours(0,0,0,0);
+        let currentUser = null;
+
+        // --- HELPERS ---
+        function dateDiffInDays(a, b) {
+            const _MS_PER_DAY = 1000 * 60 * 60 * 24;
+            return Math.floor((a - b) / _MS_PER_DAY);
+        }
+
+        // --- AUTH & SETUP ---
+        function handleAuth(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const users = JSON.parse(localStorage.getItem('ms_mock_users') || '{}');
+
+            if (document.getElementById('authSubmitBtn').innerText === "Sign In") {
+                if (!users[email] || users[email].password !== password) {
+                    const err = document.getElementById('authError');
+                    err.classList.remove('hidden');
+                    document.getElementById('errorMessage').innerText = "Wrong credentials.";
+                    return;
+                }
+            } else {
+                users[email] = { password, name: email.split('@')[0] };
+                localStorage.setItem('ms_mock_users', JSON.stringify(users));
+            }
+
+            currentUser = { email, name: users[email].name };
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('appSection').classList.remove('hidden');
+            document.getElementById('header-username').innerText = currentUser.name;
+            document.getElementById('user-display-name').innerText = currentUser.name;
+            document.getElementById('user-display-email').innerText = currentUser.email;
+            
+            medications = JSON.parse(localStorage.getItem(`ms_meds_${email}`) || '[]');
+            completedDoses = JSON.parse(localStorage.getItem(`ms_logs_${email}`) || '{}');
+            
+            // Default dates for form
+            document.getElementById('med-start-date').value = new Date().toISOString().split('T')[0];
+            
+            renderAll();
+        }
+
+        function toggleAuthMode() {
+            const isLogin = document.getElementById('authSubmitBtn').innerText === "Sign In";
+            document.getElementById('authSubmitBtn').innerText = isLogin ? "Create Account" : "Sign In";
+            document.getElementById('authTitle').innerText = isLogin ? "Join MedAssist" : "MedAssist";
+        }
+
+        function togglePasswordVisibility() {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('password-eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        function logout() { window.location.reload(); }
+
+        function toggleSettingsModal(show) {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.toggle('hidden', !show);
+            if (show) document.getElementById('settings-api-key').value = localStorage.getItem('medassist_api_key') || "";
+        }
+
+        function saveSettings(e) {
+            e.preventDefault();
+            const key = document.getElementById('settings-api-key').value.trim();
+            localStorage.setItem('medassist_api_key', key);
+            toggleSettingsModal(false);
+        }
+
+        function getEffectiveApiKey() {
+            return (apiKey && apiKey.length > 0) ? apiKey : (localStorage.getItem('medassist_api_key') || "");
+        }
+
+        // --- APP LOGIC ---
+        
+        // Helper to get meds for specific day (shared logic)
+        function getMedsForDate(date) {
+            return medications.filter(m => {
+                const start = new Date(m.startDate); start.setHours(0,0,0,0);
+                const end = m.endDate ? new Date(m.endDate) : null;
+                if (end) end.setHours(0,0,0,0);
+
+                if (date < start) return false;
+                if (end && date > end) return false;
+
+                const diff = dateDiffInDays(date, start);
+                if (m.frequency === 'every-other' && diff % 2 !== 0) return false;
+                if (m.frequency === 'weekly' && diff % 7 !== 0) return false;
+
+                return true;
+            }).sort((a,b) => a.time.localeCompare(b.time));
+        }
+
+        const renderAll = () => { 
+            const dailyMeds = getMedsForDate(selectedDate);
+            renderStrip(); 
+            renderSchedule(dailyMeds); 
+            renderLibrary(); 
+            updateSummary(dailyMeds); 
+        };
+
+        const renderStrip = () => {
+            const container = document.getElementById('calendar-strip');
+            container.innerHTML = '';
+            const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            document.getElementById('current-month-display').innerText = `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+            
+            for(let i = -7; i <= 7; i++) {
+                const d = new Date(selectedDate);
+                d.setDate(selectedDate.getDate() + i); d.setHours(0,0,0,0);
+                const card = document.createElement('div');
+                card.className = `day-card ${d.getTime() === selectedDate.getTime() ? 'active' : ''}`;
+                card.innerHTML = `<span class="text-[9px] font-extrabold uppercase mb-1">${d.toLocaleDateString('en-US',{weekday:'short'})}</span><span class="text-lg font-extrabold">${d.getDate()}</span>`;
+                card.onclick = () => { selectedDate = d; renderAll(); };
+                container.appendChild(card);
+                if(i === 0) card.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            }
+        };
+
+        const renderSchedule = (dailyMeds) => {
+            const container = document.getElementById('schedule-container');
+            const key = selectedDate.toDateString();
+            const done = completedDoses[key] || [];
+            
+            if(dailyMeds.length === 0) {
+                container.innerHTML = `<div class="text-center text-slate-400 font-extrabold py-20 italic text-sm tracking-widest opacity-60">No medications scheduled for today.</div>`;
+                return;
+            }
+            
+            container.innerHTML = dailyMeds.map(m => {
+                const isDone = done.includes(m.id);
+                return `<div class="bg-white p-6 rounded-[2rem] flex items-center justify-between border border-slate-300 shadow-sm">
+                    <div class="flex items-center gap-5">
+                        <div class="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-xs font-extrabold">${m.time}</div>
+                        <div>
+                            <div class="text-lg font-extrabold text-slate-800 ${isDone ? 'line-through opacity-20' : ''}">${m.name}</div>
+                            <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">${m.dose} • ${m.frequency}</div>
+                        </div>
+                    </div>
+                    <button onclick="toggleDose('${m.id}')" class="w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isDone ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-50 text-slate-300 border border-slate-200'}">
+                        <i class="fas ${isDone ? 'fa-check' : 'fa-circle'}"></i>
+                    </button>
+                </div>`;
+            }).join('');
+        };
+
+        const renderLibrary = () => {
+            const container = document.getElementById('med-list-container');
+            if(medications.length === 0) {
+                container.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold italic">Library is empty.</div>`;
+                return;
+            }
+            container.innerHTML = medications.map(m => `
+                <div class="bg-white p-6 rounded-[2rem] flex items-center justify-between border border-slate-300 shadow-sm">
+                    <div class="flex items-center gap-5">
+                         <div class="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-200"><i class="fas fa-pills"></i></div>
+                         <div>
+                            <div class="text-lg font-extrabold text-slate-800">${m.name}</div>
+                            <div class="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">${m.dose} • ${m.frequency}</div>
+                            <div class="text-[9px] text-slate-300 font-bold uppercase">${m.startDate} ${m.endDate ? 'to ' + m.endDate : '(No end date)'}</div>
+                         </div>
+                    </div>
+                    <button onclick="deleteMed('${m.id}')" class="text-slate-200 hover:text-red-400 p-3 transition-colors"><i class="fas fa-trash-alt"></i></button>
+                </div>`).join('');
+        };
+
+        const updateSummary = (dailyMeds) => {
+            const totalOnDay = dailyMeds.length;
+            const done = (completedDoses[selectedDate.toDateString()] || []).length;
+            // Now strictly shows "X of Y" even if Y is 0.
+            document.getElementById('summary-text').innerText = `${done} of ${totalOnDay} completed.`;
+        };
+
+        window.toggleDose = (id) => {
+            const key = selectedDate.toDateString();
+            if(!completedDoses[key]) completedDoses[key] = [];
+            const idx = completedDoses[key].indexOf(id);
+            if(idx > -1) completedDoses[key].splice(idx,1); else completedDoses[key].push(id);
+            localStorage.setItem(`ms_logs_${currentUser.email}`, JSON.stringify(completedDoses));
+            renderAll();
+        };
+
+        window.deleteMed = (id) => {
+            medications = medications.filter(m => m.id !== id);
+            localStorage.setItem(`ms_meds_${currentUser.email}`, JSON.stringify(medications));
+            renderAll();
+        };
+
+        window.openFullCalendar = () => {
+            const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            document.getElementById('modal-month-title').innerText = `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+            const grid = document.getElementById('full-calendar-grid');
+            grid.innerHTML = '';
+            const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1).getDay();
+            const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+            const today = new Date(); today.setHours(0,0,0,0);
+            for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dayEl = document.createElement('div');
+                const thisDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), d);
+                dayEl.className = 'calendar-grid-day';
+                if (thisDate.getTime() === selectedDate.getTime()) dayEl.classList.add('selected');
+                if (thisDate.getTime() === today.getTime()) dayEl.classList.add('today-marker');
+                dayEl.innerText = d;
+                dayEl.onclick = () => { selectedDate = thisDate; closeFullCalendar(); renderAll(); };
+                grid.appendChild(dayEl);
+            }
+            document.getElementById('calendar-modal').classList.remove('hidden');
+        };
+
+        window.closeFullCalendar = () => document.getElementById('calendar-modal').classList.add('hidden');
+
+        function toggleFabMenu() {
+            document.getElementById('fab-menu').classList.toggle('hidden-scale');
+            document.getElementById('fab-main').style.transform = document.getElementById('fab-menu').classList.contains('hidden-scale') ? 'rotate(0)' : 'rotate(45deg)';
+        }
+        function toggleModal(s) { document.getElementById('modal-overlay').classList.toggle('hidden', !s); }
+        function toggleSideMenu(s) {
+            document.getElementById('side-menu').classList.toggle('open', s);
+            document.getElementById('side-menu-overlay').classList.toggle('hidden', !s);
+        }
+        function toggleAiSheet(s) {
+            document.getElementById('ai-sheet').classList.toggle('open', s);
+            document.getElementById('ai-sheet-overlay').classList.toggle('hidden', !s);
+        }
+        function switchTab(t) {
+            document.getElementById('view-today').classList.toggle('hidden', t !== 'today');
+            document.getElementById('view-list').classList.toggle('hidden', t !== 'list');
+            toggleSideMenu(false);
+        }
+
+        document.getElementById('med-form').onsubmit = (e) => {
+            e.preventDefault();
+            medications.push({
+                id: Math.random().toString(36).substr(2,9),
+                name: document.getElementById('med-name').value,
+                dose: document.getElementById('med-dose').value,
+                time: document.getElementById('med-time').value,
+                frequency: document.getElementById('med-frequency').value,
+                startDate: document.getElementById('med-start-date').value,
+                endDate: document.getElementById('med-end-date').value || null
+            });
+            localStorage.setItem(`ms_meds_${currentUser.email}`, JSON.stringify(medications));
+            renderAll(); toggleModal(false); e.target.reset();
+            document.getElementById('med-start-date').value = new Date().toISOString().split('T')[0];
+        };
+
+        // --- AI FUNCTIONS ---
+        async function fetchWithRetry(url, opts, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(url, opts);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return await res.json();
+                } catch (e) {
+                    if (i === retries - 1) throw e;
+                    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+                }
+            }
+        }
+
+        function appendMsg(text, sender) {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = `chat-msg msg-${sender} shadow-sm`;
+            div.innerHTML = text === 'typing' ? `<div class="flex gap-2 p-1"><div class="typing-dot"></div><div class="typing-dot" style="animation-delay:0.2s"></div><div class="typing-dot" style="animation-delay:0.4s"></div></div>` : text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div;
+        }
+
+        async function handleChatSubmit(e) {
+            if (e) e.preventDefault();
+            const currentApiKey = getEffectiveApiKey();
+            if (!currentApiKey) { toggleAiSheet(false); toggleSettingsModal(true); return; }
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+            appendMsg(text, 'user');
+            input.value = '';
+            const typing = appendMsg('typing', 'bot');
+            try {
+                const sysPrompt = `You are a medical assistant. User: ${currentUser.name}. Meds: ${JSON.stringify(medications)}. Be brief. Always add "Consult a healthcare professional for medical advice."`;
+                const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${currentApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: text }] }],
+                        systemInstruction: { parts: [{ text: sysPrompt }] }
+                    })
+                });
+                typing.remove();
+                appendMsg(response.candidates?.[0]?.content?.parts?.[0]?.text || "Error processing request.", 'bot');
+            } catch (err) { typing.remove(); appendMsg("Check API key in settings.", 'bot'); }
+        }
+
+        function triggerScan() { 
+            if (!getEffectiveApiKey()) { toggleSettingsModal(true); return; }
+            document.getElementById('scan-input').click(); 
+            toggleFabMenu(); 
+        }
+        
+        async function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            e.target.value = '';
+            const currentApiKey = getEffectiveApiKey();
+            const loader = document.getElementById('scan-loader');
+            loader.classList.remove('hidden');
+            const spinner = document.getElementById('loader-spinner');
+            const success = document.getElementById('loader-success');
+            const title = document.getElementById('loader-title');
+            const text = document.getElementById('loader-text');
+            const closeBtn = document.getElementById('loader-close');
+            spinner.classList.remove('hidden'); success.classList.add('hidden'); closeBtn.classList.add('hidden');
+            title.innerText = "Processing..."; text.innerText = "Extracting medication details.";
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const base64 = event.target.result.split(',')[1];
+                let mimeType = file.type || "image/png";
+                if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
+                try {
+                    const prompt = "Extract medication details from this image. Return ONLY a JSON array of objects with keys: name, dose, time. Time in HH:mm format.";
+                    const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${currentApiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: mimeType, data: base64 } }] }],
+                            generationConfig: { responseMimeType: "application/json" }
+                        })
+                    });
+                    const meds = JSON.parse(response.candidates?.[0]?.content?.parts?.[0]?.text || "[]");
+                    meds.forEach(m => {
+                        medications.push({
+                            id: Math.random().toString(36).substr(2,9),
+                            name: m.name || "Unknown", dose: m.dose || "Dose", time: m.time || "09:00",
+                            frequency: "daily", startDate: new Date().toISOString().split('T')[0], endDate: null
+                        });
+                    });
+                    localStorage.setItem(`ms_meds_${currentUser.email}`, JSON.stringify(medications));
+                    renderAll();
+                    spinner.classList.add('hidden'); success.classList.remove('hidden'); closeBtn.classList.remove('hidden');
+                    title.innerText = "Success!"; text.innerText = `Added ${meds.length} medications.`;
+                } catch (err) {
+                    spinner.classList.add('hidden'); title.innerText = "Error"; text.innerText = "Extraction failed."; closeBtn.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function closeLoader() { document.getElementById('scan-loader').classList.add('hidden'); }
+    </script>
+</body>
+</html>
