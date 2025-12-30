@@ -60,16 +60,12 @@
             border-color: #94A3B8;
         }
 
-        #side-menu {
-            transform: translateX(-100%);
+        #side-menu, #ai-sheet {
             transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        #side-menu { transform: translateX(-100%); }
         #side-menu.open { transform: translateX(0); }
-
-        #ai-sheet {
-            transform: translateY(100%);
-            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
+        #ai-sheet { transform: translateY(100%); }
         #ai-sheet.open { transform: translateY(0); }
 
         .chat-msg {
@@ -95,6 +91,7 @@
         }
 
         .hidden-scale { transform: scale(0) translateY(20px); opacity: 0; pointer-events: none; }
+        .show-scale { transform: scale(1) translateY(0); opacity: 1; pointer-events: auto; }
 
         .calendar-grid {
             display: grid;
@@ -146,7 +143,6 @@
                 </div>
                 <input id="email" type="email" placeholder="Email" class="w-full px-6 py-4 rounded-2xl outline-none bg-slate-50 border border-slate-200 font-semibold text-slate-800 focus:border-slate-400 transition-colors" required>
                 
-                <!-- Password Field with Toggle -->
                 <div class="relative">
                     <input id="password" type="password" placeholder="Password" class="w-full px-6 py-4 rounded-2xl outline-none bg-slate-50 border border-slate-200 font-semibold text-slate-800 focus:border-slate-400 transition-colors pr-14" required>
                     <button type="button" onclick="togglePasswordVisibility()" class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors rounded-xl hover:bg-slate-100/50">
@@ -209,6 +205,10 @@
                 </button>
                 <button onclick="toggleSettingsModal(true); toggleSideMenu(false);" class="w-full text-left p-4 rounded-2xl font-bold text-slate-500 hover:bg-white flex items-center gap-4 transition-all">
                     <i class="fas fa-cog"></i> Settings
+                </button>
+                <hr class="my-4 border-slate-200">
+                <button onclick="runInteractionCheck()" class="w-full text-left p-4 rounded-2xl font-bold text-slate-500 hover:bg-white flex items-center gap-4 transition-all">
+                    <i class="fas fa-shield-virus"></i> Check Interactions
                 </button>
             </nav>
             <button onclick="logout()" class="w-full p-4 text-slate-400 font-bold border-t border-slate-200 mt-4 flex items-center gap-4 hover:text-red-500 transition-colors">
@@ -290,7 +290,7 @@
         </div>
     </div>
 
-    <!-- Add Medication Modal -->
+    <!-- Modals -->
     <div id="modal-overlay" class="fixed inset-0 hidden z-[110] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90vh]">
             <h2 class="text-2xl font-extrabold text-slate-800 mb-6">Add Medication</h2>
@@ -323,7 +323,7 @@
                         <input type="date" id="med-start-date" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800" required>
                     </div>
                     <div class="space-y-1">
-                        <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">End Date (Optional)</label>
+                        <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">End Date</label>
                         <input type="date" id="med-end-date" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800">
                     </div>
                 </div>
@@ -337,16 +337,39 @@
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="fixed inset-0 hidden z-[250] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
-        <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border border-slate-200">
+        <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border border-slate-200 overflow-y-auto max-h-[90vh]">
             <h2 class="text-2xl font-extrabold text-slate-800 mb-2">Settings</h2>
-            <p class="text-slate-500 text-sm mb-6">Configure your connection for local use.</p>
-            <form onsubmit="saveSettings(event)" class="space-y-4">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Gemini API Key</label>
-                    <input type="password" id="settings-api-key" placeholder="Paste your API key here" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800 focus:border-slate-400" required>
-                    <p class="text-[10px] text-slate-400 px-2 mt-1">Get a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" class="underline text-blue-500">Google AI Studio</a></p>
+            <p class="text-slate-500 text-sm mb-6">Manage your profile and API configuration.</p>
+            
+            <form onsubmit="saveSettings(event)" class="space-y-6">
+                <!-- API Status Indicator -->
+                <div id="api-status-badge" class="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">System API Key</div>
+                        <div id="api-status-text" class="text-xs font-bold text-slate-600 italic">Checking environment...</div>
+                    </div>
+                    <div id="api-status-icon" class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-white">
+                        <i class="fas fa-lock"></i>
+                    </div>
                 </div>
-                <div class="flex gap-3 pt-4">
+
+                <div class="space-y-1">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Display Name</label>
+                    <input type="text" id="settings-user-name" placeholder="Your Name" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800 focus:border-slate-400">
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Manual Gemini Key (Override)</label>
+                    <input type="password" id="settings-api-key" placeholder="System key active by default" class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-bold text-slate-800 focus:border-slate-400">
+                </div>
+
+                <div class="pt-2 border-t border-slate-100">
+                    <button type="button" onclick="confirmReset()" class="w-full py-3 text-red-500 font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-50 rounded-xl transition-colors">
+                        <i class="fas fa-trash-alt text-xs"></i> Reset Local App Data
+                    </button>
+                </div>
+
+                <div class="flex gap-3 pt-2">
                     <button type="button" onclick="toggleSettingsModal(false)" class="flex-1 py-4 bg-slate-100 rounded-2xl font-extrabold text-slate-500">Cancel</button>
                     <button type="submit" class="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-extrabold shadow-lg">Save</button>
                 </div>
@@ -354,7 +377,20 @@
         </div>
     </div>
 
-    <!-- Full Calendar Modal -->
+    <!-- UI Message Modal -->
+    <div id="msg-modal" class="fixed inset-0 hidden z-[300] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-xs rounded-[3rem] p-8 text-center shadow-2xl">
+            <div id="msg-icon" class="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"></div>
+            <h3 id="msg-title" class="text-lg font-extrabold text-slate-900 mb-2">Notice</h3>
+            <p id="msg-text" class="text-slate-500 font-medium text-sm mb-6"></p>
+            <div id="msg-actions" class="flex gap-2">
+                <button id="msg-cancel" class="hidden flex-1 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl">Cancel</button>
+                <button onclick="closeMsgModal()" id="msg-close" class="flex-1 py-4 bg-slate-800 text-white font-bold rounded-2xl">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Full Modal -->
     <div id="calendar-modal" class="fixed inset-0 hidden z-[120] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-slate-200">
             <div class="flex items-center justify-between mb-8">
@@ -382,27 +418,24 @@
             <i class="fas fa-check"></i>
         </div>
         <h3 id="loader-title" class="text-2xl font-extrabold text-slate-800">Processing...</h3>
-        <p id="loader-text" class="text-slate-500 text-lg mt-3 font-medium">Extracting medication details.</p>
+        <p id="loader-text" class="text-slate-500 text-lg mt-3 font-medium">Extracting details with Gemini AI.</p>
         <button id="loader-close" onclick="closeLoader()" class="hidden mt-8 px-8 py-4 bg-slate-800 text-white rounded-2xl font-extrabold shadow-xl">Done</button>
     </div>
 
     <input type="file" id="scan-input" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
 
     <script>
+        // Use the globally provided apiKey
         const apiKey = ""; 
+        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+        
         let medications = [];
         let completedDoses = {};
         let selectedDate = new Date();
         selectedDate.setHours(0,0,0,0);
         let currentUser = null;
 
-        // --- HELPERS ---
-        function dateDiffInDays(a, b) {
-            const _MS_PER_DAY = 1000 * 60 * 60 * 24;
-            return Math.floor((a - b) / _MS_PER_DAY);
-        }
-
-        // --- AUTH & SETUP ---
+        // --- AUTH ---
         function handleAuth(e) {
             e.preventDefault();
             const email = document.getElementById('email').value.trim();
@@ -411,9 +444,7 @@
 
             if (document.getElementById('authSubmitBtn').innerText === "Sign In") {
                 if (!users[email] || users[email].password !== password) {
-                    const err = document.getElementById('authError');
-                    err.classList.remove('hidden');
-                    document.getElementById('errorMessage').innerText = "Wrong credentials.";
+                    showUIMessage("Authentication Error", "Invalid email or password.", "error");
                     return;
                 }
             } else {
@@ -431,73 +462,150 @@
             medications = JSON.parse(localStorage.getItem(`ms_meds_${email}`) || '[]');
             completedDoses = JSON.parse(localStorage.getItem(`ms_logs_${email}`) || '{}');
             
-            // Default dates for form
             document.getElementById('med-start-date').value = new Date().toISOString().split('T')[0];
-            
             renderAll();
         }
 
         function toggleAuthMode() {
             const isLogin = document.getElementById('authSubmitBtn').innerText === "Sign In";
-            document.getElementById('authSubmitBtn').innerText = isLogin ? "Create Account" : "Sign In";
-            document.getElementById('authTitle').innerText = isLogin ? "Join MedAssist" : "MedAssist";
-        }
+            const authBtn = document.getElementById('authSubmitBtn');
+            const authTitle = document.getElementById('authTitle');
+            const toggleBtn = document.getElementById('toggleBtn');
 
-        function togglePasswordVisibility() {
-            const input = document.getElementById('password');
-            const icon = document.getElementById('password-eye-icon');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
+            if (isLogin) {
+                authBtn.innerText = "Create Account";
+                authTitle.innerText = "Join MedAssist";
+                toggleBtn.innerText = "Already have an account? Sign in";
             } else {
-                input.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
+                authBtn.innerText = "Sign In";
+                authTitle.innerText = "MedAssist";
+                toggleBtn.innerText = "Create an account";
             }
         }
 
         function logout() { window.location.reload(); }
 
+        // --- SETTINGS ---
         function toggleSettingsModal(show) {
             const modal = document.getElementById('settings-modal');
             modal.classList.toggle('hidden', !show);
-            if (show) document.getElementById('settings-api-key').value = localStorage.getItem('medassist_api_key') || "";
+            if (show) {
+                document.getElementById('settings-api-key').value = localStorage.getItem('medassist_api_key') || "";
+                document.getElementById('settings-user-name').value = currentUser ? currentUser.name : "";
+                updateApiStatusUI();
+            }
+        }
+
+        function updateApiStatusUI() {
+            const statusText = document.getElementById('api-status-text');
+            const statusIcon = document.getElementById('api-status-icon');
+            const effectiveKey = getEffectiveApiKey();
+
+            if (apiKey && apiKey.length > 0) {
+                statusText.innerText = "System Key Active (Plus Mode)";
+                statusText.className = "text-xs font-bold text-green-600";
+                statusIcon.className = "w-6 h-6 rounded-full bg-green-500 flex items-center justify-center text-[10px] text-white";
+                statusIcon.innerHTML = '<i class="fas fa-check"></i>';
+            } else if (effectiveKey) {
+                statusText.innerText = "Manual Key Active";
+                statusText.className = "text-xs font-bold text-blue-600";
+                statusIcon.className = "w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] text-white";
+                statusIcon.innerHTML = '<i class="fas fa-key"></i>';
+            } else {
+                statusText.innerText = "No Key Detected";
+                statusText.className = "text-xs font-bold text-slate-400";
+                statusIcon.className = "w-6 h-6 rounded-full bg-slate-300 flex items-center justify-center text-[10px] text-white";
+                statusIcon.innerHTML = '<i class="fas fa-exclamation"></i>';
+            }
         }
 
         function saveSettings(e) {
             e.preventDefault();
             const key = document.getElementById('settings-api-key').value.trim();
+            const newName = document.getElementById('settings-user-name').value.trim();
+            
+            if (newName && currentUser) {
+                currentUser.name = newName;
+                document.getElementById('header-username').innerText = newName;
+                document.getElementById('user-display-name').innerText = newName;
+                
+                // Save to mock users list
+                const users = JSON.parse(localStorage.getItem('ms_mock_users') || '{}');
+                if (users[currentUser.email]) {
+                    users[currentUser.email].name = newName;
+                    localStorage.setItem('ms_mock_users', JSON.stringify(users));
+                }
+            }
+
             localStorage.setItem('medassist_api_key', key);
             toggleSettingsModal(false);
+            showUIMessage("Settings Saved", "Profile and configuration updated.");
+        }
+
+        function confirmReset() {
+            const cancelBtn = document.getElementById('msg-cancel');
+            const closeBtn = document.getElementById('msg-close');
+            
+            cancelBtn.classList.remove('hidden');
+            cancelBtn.onclick = () => closeMsgModal();
+            
+            closeBtn.innerText = "Reset Data";
+            closeBtn.className = "flex-1 py-4 bg-red-500 text-white font-bold rounded-2xl";
+            closeBtn.onclick = () => {
+                if (currentUser) {
+                    localStorage.removeItem(`ms_meds_${currentUser.email}`);
+                    localStorage.removeItem(`ms_logs_${currentUser.email}`);
+                    window.location.reload();
+                }
+            };
+
+            showUIMessage("Confirm Reset", "This will permanently delete your medications and logs for this account. Continue?", "error");
         }
 
         function getEffectiveApiKey() {
             return (apiKey && apiKey.length > 0) ? apiKey : (localStorage.getItem('medassist_api_key') || "");
         }
 
+        // --- UI HELPERS ---
+        function showUIMessage(title, text, type = "info") {
+            const modal = document.getElementById('msg-modal');
+            const icon = document.getElementById('msg-icon');
+            const closeBtn = document.getElementById('msg-close');
+            const cancelBtn = document.getElementById('msg-cancel');
+            
+            // Reset to default
+            closeBtn.innerText = "Dismiss";
+            closeBtn.className = "flex-1 py-4 bg-slate-800 text-white font-bold rounded-2xl";
+            closeBtn.onclick = () => closeMsgModal();
+            cancelBtn.classList.add('hidden');
+
+            document.getElementById('msg-title').innerText = title;
+            document.getElementById('msg-text').innerText = text;
+            icon.className = `w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center ${type === 'error' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`;
+            icon.innerHTML = `<i class="fas ${type === 'error' ? 'fa-exclamation' : 'fa-info'} text-xl"></i>`;
+            modal.classList.remove('hidden');
+        }
+        function closeMsgModal() { document.getElementById('msg-modal').classList.add('hidden'); }
+
         // --- APP LOGIC ---
-        
-        // Helper to get meds for specific day (shared logic)
-        function getMedsForDate(date) {
-            return medications.filter(m => {
-                const start = new Date(m.startDate); start.setHours(0,0,0,0);
-                const end = m.endDate ? new Date(m.endDate) : null;
-                if (end) end.setHours(0,0,0,0);
-
-                if (date < start) return false;
-                if (end && date > end) return false;
-
-                const diff = dateDiffInDays(date, start);
-                if (m.frequency === 'every-other' && diff % 2 !== 0) return false;
-                if (m.frequency === 'weekly' && diff % 7 !== 0) return false;
-
-                return true;
-            }).sort((a,b) => a.time.localeCompare(b.time));
+        function dateDiffInDays(a, b) {
+            const _MS_PER_DAY = 1000 * 60 * 60 * 24;
+            return Math.floor((a - b) / _MS_PER_DAY);
         }
 
         const renderAll = () => { 
-            const dailyMeds = getMedsForDate(selectedDate);
+            const dailyMeds = medications.filter(m => {
+                const start = new Date(m.startDate); start.setHours(0,0,0,0);
+                const end = m.endDate ? new Date(m.endDate) : null;
+                if (end) end.setHours(0,0,0,0);
+                if (selectedDate < start) return false;
+                if (end && selectedDate > end) return false;
+                const diff = dateDiffInDays(selectedDate, start);
+                if (m.frequency === 'every-other' && diff % 2 !== 0) return false;
+                if (m.frequency === 'weekly' && diff % 7 !== 0) return false;
+                return true;
+            }).sort((a,b) => a.time.localeCompare(b.time));
+
             renderStrip(); 
             renderSchedule(dailyMeds); 
             renderLibrary(); 
@@ -515,7 +623,7 @@
                 d.setDate(selectedDate.getDate() + i); d.setHours(0,0,0,0);
                 const card = document.createElement('div');
                 card.className = `day-card ${d.getTime() === selectedDate.getTime() ? 'active' : ''}`;
-                card.innerHTML = `<span class="text-[9px] font-extrabold uppercase mb-1">${d.toLocaleDateString('en-US',{weekday:'short'})}</span><span class="text-lg font-extrabold">${d.getDate()}</span>`;
+                card.innerHTML = `<span class="text-[9px] font-extrabold uppercase mb-1 opacity-70">${d.toLocaleDateString('en-US',{weekday:'short'})}</span><span class="text-lg font-extrabold">${d.getDate()}</span>`;
                 card.onclick = () => { selectedDate = d; renderAll(); };
                 container.appendChild(card);
                 if(i === 0) card.scrollIntoView({ behavior: 'smooth', inline: 'center' });
@@ -528,7 +636,7 @@
             const done = completedDoses[key] || [];
             
             if(dailyMeds.length === 0) {
-                container.innerHTML = `<div class="text-center text-slate-400 font-extrabold py-20 italic text-sm tracking-widest opacity-60">No medications scheduled for today.</div>`;
+                container.innerHTML = `<div class="bg-white/40 p-12 rounded-[2rem] text-center text-slate-400 font-bold border-2 border-dashed border-slate-200">No medications for this date.</div>`;
                 return;
             }
             
@@ -552,7 +660,7 @@
         const renderLibrary = () => {
             const container = document.getElementById('med-list-container');
             if(medications.length === 0) {
-                container.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold italic">Library is empty.</div>`;
+                container.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold italic">Your library is empty.</div>`;
                 return;
             }
             container.innerHTML = medications.map(m => `
@@ -562,7 +670,6 @@
                          <div>
                             <div class="text-lg font-extrabold text-slate-800">${m.name}</div>
                             <div class="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">${m.dose} • ${m.frequency}</div>
-                            <div class="text-[9px] text-slate-300 font-bold uppercase">${m.startDate} ${m.endDate ? 'to ' + m.endDate : '(No end date)'}</div>
                          </div>
                     </div>
                     <button onclick="deleteMed('${m.id}')" class="text-slate-200 hover:text-red-400 p-3 transition-colors"><i class="fas fa-trash-alt"></i></button>
@@ -572,7 +679,6 @@
         const updateSummary = (dailyMeds) => {
             const totalOnDay = dailyMeds.length;
             const done = (completedDoses[selectedDate.toDateString()] || []).length;
-            // Now strictly shows "X of Y" even if Y is 0.
             document.getElementById('summary-text').innerText = `${done} of ${totalOnDay} completed.`;
         };
 
@@ -591,7 +697,189 @@
             renderAll();
         };
 
-        window.openFullCalendar = () => {
+        // --- AI (GEMINI) ---
+        async function fetchWithRetry(url, opts, retries = 5) {
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(url, opts);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return await res.json();
+                } catch (e) {
+                    if (i === retries - 1) throw e;
+                    await new Promise(r => setTimeout(r, delays[i]));
+                }
+            }
+        }
+
+        async function handleChatSubmit(e) {
+            if (e) e.preventDefault();
+            const currentKey = getEffectiveApiKey();
+            
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+
+            appendMsg(text, 'user');
+            input.value = '';
+            const typing = appendMsg('typing', 'bot');
+
+            const systemPrompt = `You are a medical assistant. User: ${currentUser.name}. Meds: ${JSON.stringify(medications)}. 
+            Instructions: Professional, helpful, minimalist. Always remind user to consult a doctor.`;
+
+            try {
+                const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${currentKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: text }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+                typing.remove();
+                appendMsg(response.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't process that. Please try again.", 'bot');
+            } catch (err) {
+                typing.remove();
+                appendMsg("There was an error connecting to the AI. Please verify your connection or check your API key settings.", 'bot');
+            }
+        }
+
+        async function runInteractionCheck() {
+            const currentKey = getEffectiveApiKey();
+            
+            if (medications.length < 2) {
+                showUIMessage("Interaction Check", "Add at least two medications to check for interactions.", "info");
+                return;
+            }
+            toggleSideMenu(false);
+            toggleAiSheet(true);
+            appendMsg("Running interaction check on your library...", 'bot');
+            const typing = appendMsg('typing', 'bot');
+            const prompt = `Review these medications for potential interactions: ${JSON.stringify(medications)}. Provide a summary of concerns and advice. Always end with a medical disclaimer.`;
+
+            try {
+                const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${currentKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                typing.remove();
+                appendMsg(response.candidates?.[0]?.content?.parts?.[0]?.text || "Check completed, but no detailed summary was returned.", 'bot');
+            } catch (err) {
+                typing.remove();
+                appendMsg("Interaction check failed. Please ensure the service is available.", 'bot');
+            }
+        }
+
+        async function handleFileSelect(e) {
+            const currentKey = getEffectiveApiKey();
+            const file = e.target.files[0];
+            if (!file) return;
+            e.target.value = '';
+
+            const loader = document.getElementById('scan-loader');
+            loader.classList.remove('hidden');
+            const spinner = document.getElementById('loader-spinner');
+            const success = document.getElementById('loader-success');
+            const title = document.getElementById('loader-title');
+            const text = document.getElementById('loader-text');
+            const closeBtn = document.getElementById('loader-close');
+
+            spinner.classList.remove('hidden'); success.classList.add('hidden'); closeBtn.classList.add('hidden');
+            title.innerText = "Scanning Prescription...";
+            text.innerText = "Gemini is analyzing the image...";
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const base64 = event.target.result.split(',')[1];
+                const mimeType = file.type || "image/jpeg";
+                const prompt = "Extract all medications from this prescription image. Return ONLY a valid JSON array of objects with keys: name, dose, time (in HH:mm format). Default time to 09:00 if not found.";
+
+                try {
+                    const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${currentKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ 
+                                parts: [
+                                    { text: prompt }, 
+                                    { inlineData: { mimeType: mimeType, data: base64 } }
+                                ] 
+                            }],
+                            generationConfig: { 
+                                responseMimeType: "application/json"
+                            }
+                        })
+                    });
+
+                    const rawText = response.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+                    const meds = JSON.parse(rawText);
+                    
+                    if (Array.isArray(meds) && meds.length > 0) {
+                        meds.forEach(m => {
+                            medications.push({
+                                id: Math.random().toString(36).substr(2,9),
+                                name: m.name || "Unknown", 
+                                dose: m.dose || "Dose specified", 
+                                time: m.time || "09:00",
+                                frequency: "daily", 
+                                startDate: new Date().toISOString().split('T')[0]
+                            });
+                        });
+                        localStorage.setItem(`ms_meds_${currentUser.email}`, JSON.stringify(medications));
+                        renderAll();
+                        spinner.classList.add('hidden'); success.classList.remove('hidden'); closeBtn.classList.remove('hidden');
+                        title.innerText = "Scan Successful";
+                        text.innerText = `Found ${meds.length} medications.`;
+                    } else {
+                        throw new Error("No meds detected");
+                    }
+                } catch (err) {
+                    spinner.classList.add('hidden'); 
+                    title.innerText = "Scan Failed"; 
+                    text.innerText = "Could not detect any medication details. Try a clearer image or enter manually.";
+                    closeBtn.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Utils
+        function toggleFabMenu() {
+            document.getElementById('fab-menu').classList.toggle('hidden-scale');
+            document.getElementById('fab-menu').classList.toggle('show-scale');
+            document.getElementById('fab-main').style.transform = document.getElementById('fab-menu').classList.contains('hidden-scale') ? 'rotate(0)' : 'rotate(45deg)';
+        }
+        function toggleModal(s) { document.getElementById('modal-overlay').classList.toggle('hidden', !s); }
+        function toggleSideMenu(s) {
+            document.getElementById('side-menu').classList.toggle('open', s);
+            document.getElementById('side-menu-overlay').classList.toggle('hidden', !s);
+        }
+        function toggleAiSheet(s) {
+            document.getElementById('ai-sheet').classList.toggle('open', s);
+            document.getElementById('ai-sheet-overlay').classList.toggle('hidden', !s);
+        }
+        function switchTab(t) {
+            document.getElementById('view-today').classList.toggle('hidden', t !== 'today');
+            document.getElementById('view-list').classList.toggle('hidden', t !== 'list');
+            toggleSideMenu(false);
+        }
+        function appendMsg(text, sender) {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = `chat-msg msg-${sender} shadow-sm`;
+            div.innerHTML = text === 'typing' ? `<div class="flex gap-2 p-1"><div class="typing-dot"></div><div class="typing-dot" style="animation-delay:0.2s"></div><div class="typing-dot" style="animation-delay:0.4s"></div></div>` : text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div;
+        }
+        function triggerScan() { document.getElementById('scan-input').click(); toggleFabMenu(); }
+        function closeLoader() { document.getElementById('scan-loader').classList.add('hidden'); }
+        function togglePasswordVisibility() {
+            const input = document.getElementById('password');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+        function openFullCalendar() {
             const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             document.getElementById('modal-month-title').innerText = `${months[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
             const grid = document.getElementById('full-calendar-grid');
@@ -611,29 +899,9 @@
                 grid.appendChild(dayEl);
             }
             document.getElementById('calendar-modal').classList.remove('hidden');
-        };
-
-        window.closeFullCalendar = () => document.getElementById('calendar-modal').classList.add('hidden');
-
-        function toggleFabMenu() {
-            document.getElementById('fab-menu').classList.toggle('hidden-scale');
-            document.getElementById('fab-main').style.transform = document.getElementById('fab-menu').classList.contains('hidden-scale') ? 'rotate(0)' : 'rotate(45deg)';
         }
-        function toggleModal(s) { document.getElementById('modal-overlay').classList.toggle('hidden', !s); }
-        function toggleSideMenu(s) {
-            document.getElementById('side-menu').classList.toggle('open', s);
-            document.getElementById('side-menu-overlay').classList.toggle('hidden', !s);
-        }
-        function toggleAiSheet(s) {
-            document.getElementById('ai-sheet').classList.toggle('open', s);
-            document.getElementById('ai-sheet-overlay').classList.toggle('hidden', !s);
-        }
-        function switchTab(t) {
-            document.getElementById('view-today').classList.toggle('hidden', t !== 'today');
-            document.getElementById('view-list').classList.toggle('hidden', t !== 'list');
-            toggleSideMenu(false);
-        }
-
+        function closeFullCalendar() { document.getElementById('calendar-modal').classList.add('hidden'); }
+        
         document.getElementById('med-form').onsubmit = (e) => {
             e.preventDefault();
             medications.push({
@@ -647,114 +915,7 @@
             });
             localStorage.setItem(`ms_meds_${currentUser.email}`, JSON.stringify(medications));
             renderAll(); toggleModal(false); e.target.reset();
-            document.getElementById('med-start-date').value = new Date().toISOString().split('T')[0];
         };
-
-        // --- AI FUNCTIONS ---
-        async function fetchWithRetry(url, opts, retries = 3) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const res = await fetch(url, opts);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return await res.json();
-                } catch (e) {
-                    if (i === retries - 1) throw e;
-                    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
-                }
-            }
-        }
-
-        function appendMsg(text, sender) {
-            const container = document.getElementById('chat-container');
-            const div = document.createElement('div');
-            div.className = `chat-msg msg-${sender} shadow-sm`;
-            div.innerHTML = text === 'typing' ? `<div class="flex gap-2 p-1"><div class="typing-dot"></div><div class="typing-dot" style="animation-delay:0.2s"></div><div class="typing-dot" style="animation-delay:0.4s"></div></div>` : text;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-            return div;
-        }
-
-        async function handleChatSubmit(e) {
-            if (e) e.preventDefault();
-            const currentApiKey = getEffectiveApiKey();
-            if (!currentApiKey) { toggleAiSheet(false); toggleSettingsModal(true); return; }
-            const input = document.getElementById('chat-input');
-            const text = input.value.trim();
-            if(!text) return;
-            appendMsg(text, 'user');
-            input.value = '';
-            const typing = appendMsg('typing', 'bot');
-            try {
-                const sysPrompt = `You are a medical assistant. User: ${currentUser.name}. Meds: ${JSON.stringify(medications)}. Be brief. Always add "Consult a healthcare professional for medical advice."`;
-                const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${currentApiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: text }] }],
-                        systemInstruction: { parts: [{ text: sysPrompt }] }
-                    })
-                });
-                typing.remove();
-                appendMsg(response.candidates?.[0]?.content?.parts?.[0]?.text || "Error processing request.", 'bot');
-            } catch (err) { typing.remove(); appendMsg("Check API key in settings.", 'bot'); }
-        }
-
-        function triggerScan() { 
-            if (!getEffectiveApiKey()) { toggleSettingsModal(true); return; }
-            document.getElementById('scan-input').click(); 
-            toggleFabMenu(); 
-        }
-        
-        async function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            e.target.value = '';
-            const currentApiKey = getEffectiveApiKey();
-            const loader = document.getElementById('scan-loader');
-            loader.classList.remove('hidden');
-            const spinner = document.getElementById('loader-spinner');
-            const success = document.getElementById('loader-success');
-            const title = document.getElementById('loader-title');
-            const text = document.getElementById('loader-text');
-            const closeBtn = document.getElementById('loader-close');
-            spinner.classList.remove('hidden'); success.classList.add('hidden'); closeBtn.classList.add('hidden');
-            title.innerText = "Processing..."; text.innerText = "Extracting medication details.";
-
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                const base64 = event.target.result.split(',')[1];
-                let mimeType = file.type || "image/png";
-                if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
-                try {
-                    const prompt = "Extract medication details from this image. Return ONLY a JSON array of objects with keys: name, dose, time. Time in HH:mm format.";
-                    const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${currentApiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: mimeType, data: base64 } }] }],
-                            generationConfig: { responseMimeType: "application/json" }
-                        })
-                    });
-                    const meds = JSON.parse(response.candidates?.[0]?.content?.parts?.[0]?.text || "[]");
-                    meds.forEach(m => {
-                        medications.push({
-                            id: Math.random().toString(36).substr(2,9),
-                            name: m.name || "Unknown", dose: m.dose || "Dose", time: m.time || "09:00",
-                            frequency: "daily", startDate: new Date().toISOString().split('T')[0], endDate: null
-                        });
-                    });
-                    localStorage.setItem(`ms_meds_${currentUser.email}`, JSON.stringify(medications));
-                    renderAll();
-                    spinner.classList.add('hidden'); success.classList.remove('hidden'); closeBtn.classList.remove('hidden');
-                    title.innerText = "Success!"; text.innerText = `Added ${meds.length} medications.`;
-                } catch (err) {
-                    spinner.classList.add('hidden'); title.innerText = "Error"; text.innerText = "Extraction failed."; closeBtn.classList.remove('hidden');
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function closeLoader() { document.getElementById('scan-loader').classList.add('hidden'); }
     </script>
 </body>
 </html>
